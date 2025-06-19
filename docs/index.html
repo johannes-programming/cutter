@@ -1,70 +1,60 @@
 <!DOCTYPE html>
 <html lang="en">
-    <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-    <title>Sound to Video Converter</title>
-    <style>
-        body { font-family: Arial, sans-serif; padding: 20px; text-align: center; }
-        input, button { margin: 10px; }
-    </style>
-    </head>
-    <body>
-    <h2>Convert Sound + Image → Video</h2>
-    
-    <input type="file" id="audioFile" accept="audio/*" />
-    <input type="file" id="imageFile" accept="image/*" />
-    <br />
-    <button onclick="convert()">Convert to Video</button>
-    <p id="status"></p>
-    <a id="downloadLink" style="display:none;" download="output.mp4">Download Video</a>
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>FFmpeg WASM - Simple Video Converter</title>
+  <style>
+    body { font-family: sans-serif; padding: 2rem; max-width: 600px; margin: auto; }
+    input, button { margin-top: 1rem; }
+    video { display: block; margin-top: 1.5rem; width: 100%; max-height: 360px; }
+  </style>
+</head>
+<body>
 
-    <script type="module">
-        import { createFFmpeg, fetchFile } from 'https://cdn.jsdelivr.net/npm/@ffmpeg/ffmpeg@0.12.4/dist/ffmpeg.mjs';
+  <h1>Convert Video to MP4 (Client-Side)</h1>
+  
+  <input type="file" id="videoInput" accept="video/*">
+  <button id="convertBtn">Convert to MP4</button>
 
-        const ffmpeg = createFFmpeg({ log: true });
-        const status = document.getElementById('status');
-        const downloadLink = document.getElementById('downloadLink');
+  <div id="loading" style="display: none;">Processing video... please wait ⏳</div>
+  <video id="outputVideo" controls></video>
 
-        async function convert() {
-        const audio = document.getElementById('audioFile').files[0];
-        const image = document.getElementById('imageFile').files[0];
+  <!-- ✅ Include ffmpeg.wasm via CDN as global script -->
+  <script src="https://unpkg.com/@ffmpeg/ffmpeg@0.11.6/dist/ffmpeg.min.js"></script>
 
-        if (!audio || !image) {
-            alert('Please upload both an image and an audio file.');
-            return;
-        }
+  <script>
+    const { createFFmpeg, fetchFile } = FFmpeg;
+    const ffmpeg = createFFmpeg({ log: true });
 
-        status.textContent = 'Loading FFmpeg...';
-        if (!ffmpeg.isLoaded()) await ffmpeg.load();
+    const videoInput = document.getElementById('videoInput');
+    const convertBtn = document.getElementById('convertBtn');
+    const outputVideo = document.getElementById('outputVideo');
+    const loading = document.getElementById('loading');
 
-        status.textContent = 'Processing...';
+    convertBtn.onclick = async () => {
+      if (!videoInput.files.length) {
+        alert('Please select a video file.');
+        return;
+      }
 
-        ffmpeg.FS('writeFile', 'audio.mp3', await fetchFile(audio));
-        ffmpeg.FS('writeFile', 'image.jpg', await fetchFile(image));
+      loading.style.display = 'block';
+      const file = videoInput.files[0];
+      const fileName = 'input.' + file.name.split('.').pop();
 
-        // Create a video from the image + audio
-        await ffmpeg.run(
-            '-loop', '1',
-            '-i', 'image.jpg',
-            '-i', 'audio.mp3',
-            '-c:v', 'libx264',
-            '-tune', 'stillimage',
-            '-c:a', 'aac',
-            '-b:a', '192k',
-            '-shortest',
-            '-pix_fmt', 'yuv420p',
-            'output.mp4'
-        );
+      if (!ffmpeg.isLoaded()) {
+        await ffmpeg.load();
+      }
 
-        const data = ffmpeg.FS('readFile', 'output.mp4');
-        const videoBlob = new Blob([data.buffer], { type: 'video/mp4' });
-        const videoUrl = URL.createObjectURL(videoBlob);
+      ffmpeg.FS('writeFile', fileName, await fetchFile(file));
+      await ffmpeg.run('-i', fileName, 'output.mp4');
+      const data = ffmpeg.FS('readFile', 'output.mp4');
 
-        downloadLink.href = videoUrl;
-        downloadLink.style.display = 'inline';
-        status.textContent = 'Done! Click to download.';
-        }
-    </script>
-    </body>
+      const videoURL = URL.createObjectURL(new Blob([data.buffer], { type: 'video/mp4' }));
+      outputVideo.src = videoURL;
+
+      loading.style.display = 'none';
+    };
+  </script>
+</body>
 </html>
