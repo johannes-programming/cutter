@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    <title>Sound to Video Converter</title>
+    <style>
+        body { font-family: Arial, sans-serif; padding: 20px; text-align: center; }
+        input, button { margin: 10px; }
+    </style>
+    </head>
+    <body>
+    <h2>Convert Sound + Image → Video</h2>
+    
+    <input type="file" id="audioFile" accept="audio/*" />
+    <input type="file" id="imageFile" accept="image/*" />
+    <br />
+    <button onclick="convert()">Convert to Video</button>
+    <p id="status"></p>
+    <a id="downloadLink" style="display:none;" download="output.mp4">Download Video</a>
+
+    <script type="module">
+        import { createFFmpeg, fetchFile } from 'https://cdn.jsdelivr.net/npm/@ffmpeg/ffmpeg@0.12.4/dist/ffmpeg.mjs';
+
+        const ffmpeg = createFFmpeg({ log: true });
+        const status = document.getElementById('status');
+        const downloadLink = document.getElementById('downloadLink');
+
+        async function convert() {
+        const audio = document.getElementById('audioFile').files[0];
+        const image = document.getElementById('imageFile').files[0];
+
+        if (!audio || !image) {
+            alert('Please upload both an image and an audio file.');
+            return;
+        }
+
+        status.textContent = 'Loading FFmpeg...';
+        if (!ffmpeg.isLoaded()) await ffmpeg.load();
+
+        status.textContent = 'Processing...';
+
+        ffmpeg.FS('writeFile', 'audio.mp3', await fetchFile(audio));
+        ffmpeg.FS('writeFile', 'image.jpg', await fetchFile(image));
+
+        // Create a video from the image + audio
+        await ffmpeg.run(
+            '-loop', '1',
+            '-i', 'image.jpg',
+            '-i', 'audio.mp3',
+            '-c:v', 'libx264',
+            '-tune', 'stillimage',
+            '-c:a', 'aac',
+            '-b:a', '192k',
+            '-shortest',
+            '-pix_fmt', 'yuv420p',
+            'output.mp4'
+        );
+
+        const data = ffmpeg.FS('readFile', 'output.mp4');
+        const videoBlob = new Blob([data.buffer], { type: 'video/mp4' });
+        const videoUrl = URL.createObjectURL(videoBlob);
+
+        downloadLink.href = videoUrl;
+        downloadLink.style.display = 'inline';
+        status.textContent = 'Done! Click to download.';
+        }
+    </script>
+    </body>
+</html>
